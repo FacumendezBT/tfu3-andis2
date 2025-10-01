@@ -9,4 +9,4 @@ COPY . .
 RUN tsc
 
 EXPOSE 5000
-CMD ["node", "app/server.js"]
+CMD ["node", "app/src/app.js"]
