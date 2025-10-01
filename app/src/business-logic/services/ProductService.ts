@@ -1,6 +1,6 @@
-import { ProductDAO } from '../models/ProductDao';
-import { ProductModel } from '../models/ProductModel';
-import { CategoryDAO } from '../models/CategoryDao';
+import { ProductDAO } from '../persistence/models/ProductDao';
+import { ProductModel } from '../../persistence/models/ProductModel';
+import { CategoryDAO } from '../persistence/models/CategoryDao';
 
 export class ProductService {
     private productDAO: ProductDAO;

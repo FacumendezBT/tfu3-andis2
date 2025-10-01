@@ -1,7 +1,7 @@
-import { OrderDAO } from '../models/OrderDao';
-import { OrderModel } from '../models/OrderModel';
-import { ProductDAO } from '../models/ProductDao';
-import { OrderItemModel } from '../models/OrderItemModel';
+import { OrderDAO } from '../persistence/models/OrderDao';
+import { OrderModel } from '../../persistence/models/OrderModel';
+import { ProductDAO } from '../persistence/models/ProductDao';
+import { OrderItemModel } from '../../persistence/models/OrderItemModel';
 
 export class OrderService {
     private orderDAO: OrderDAO;

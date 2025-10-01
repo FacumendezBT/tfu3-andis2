@@ -1,38 +1,33 @@
-import { BigPotatoDao } from './types';
-import { DatabaseConnection } from './DatabaseConnection';
-import { promisify } from 'util';
-import { OrderModel } from './OrderModel';
-import { OrderItemModel } from './OrderItemModel';
+import { BigPotatoDao } from '../models/types';
+import { DatabaseConnection } from '../../config/DatabaseConnection';
+import { OrderModel } from '../models/OrderModel';
+import { OrderItemModel } from '../models/OrderItemModel';
 
 export class OrderDAO implements BigPotatoDao<OrderModel, number> {
-    private db = DatabaseConnection.getInstance().getDatabase();
-    private run = promisify(this.db.run.bind(this.db));
-    private get = promisify(this.db.get.bind(this.db));
-    private all = promisify(this.db.all.bind(this.db));
+    private dbConnection = DatabaseConnection.getInstance();
 
     async create(order: OrderModel): Promise<OrderModel> {
         try {
-            const result = await this.run(
-                `INSERT INTO orders (customer_id, order_date, status, total_amount, updated_at) 
-                 VALUES (?, ?, ?, ?, ?)`,
+            const result = await this.dbConnection.execute(
+                `INSERT INTO orders (customer_id, order_date, status, total_amount) 
+                 VALUES (?, ?, ?, ?)`,
                 [
                     order.customerId,
-                    order.orderDate.toISOString(),
+                    order.orderDate,
                     order.status,
-                    order.totalAmount,
-                    order.updatedAt.toISOString()
+                    order.totalAmount
                 ]
             );
             
-            const orderId = (result as any).lastID;
+            const orderId = Number(result.insertId);
             
             // Create order items if provided
             if (order.items && order.items.length > 0) {
                 for (const item of order.items) {
-                    await this.run(
-                        `INSERT INTO order_items (order_id, type, product_id, quantity, unit_price, subtotal) 
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        [orderId, item.type, item.productId, item.quantity, item.unitPrice, item.subtotal]
+                    await this.dbConnection.execute(
+                        `INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [orderId, item.productId, item.quantity, item.unitPrice, item.quantity * item.unitPrice]
                     );
                 }
             }
@@ -49,15 +44,16 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async findById(id: number): Promise<OrderModel | null> {
         try {
-            const row = await this.get(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM orders WHERE id = ?`,
                 [id]
             );
             
-            if (!row) return null;
+            if (!rows || rows.length === 0) return null;
+            const row = rows[0];
             
             // Get associated order items
-            const itemRows = await this.all(
+            const itemRows = await this.dbConnection.query(
                 `SELECT * FROM order_items WHERE order_id = ? ORDER BY id`,
                 [id]
             );
@@ -68,7 +64,8 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
                     ...itemRow,
                     orderId: itemRow.order_id,
                     productId: itemRow.product_id,
-                    unitPrice: itemRow.unit_price
+                    unitPrice: itemRow.unit_price,
+                    totalPrice: itemRow.total_price
                 }).toJSON()
             );
             
@@ -80,7 +77,7 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async findAll(): Promise<OrderModel[]> {
         try {
-            const rows = await this.all(`SELECT * FROM orders ORDER BY order_date DESC`);
+            const rows = await this.dbConnection.query(`SELECT * FROM orders ORDER BY order_date DESC`);
             const orders = [];
             
             for (const row of rows) {
@@ -96,19 +93,19 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async update(id: number, order: OrderModel): Promise<OrderModel> {
         try {
-            await this.run(
-                `UPDATE orders SET customer_id = ?, status = ?, total_amount = ?, updated_at = ? WHERE id = ?`,
-                [order.customerId, order.status, order.totalAmount, new Date().toISOString(), id]
+            await this.dbConnection.execute(
+                `UPDATE orders SET customer_id = ?, status = ?, total_amount = ? WHERE id = ?`,
+                [order.customerId, order.status, order.totalAmount, id]
             );
             
             // Update order items - delete existing and recreate
-            await this.run(`DELETE FROM order_items WHERE order_id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM order_items WHERE order_id = ?`, [id]);
             if (order.items && order.items.length > 0) {
                 for (const item of order.items) {
-                    await this.run(
-                        `INSERT INTO order_items (order_id, type, product_id, quantity, unit_price, subtotal) 
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        [id, item.type, item.productId, item.quantity, item.unitPrice, item.subtotal]
+                    await this.dbConnection.execute(
+                        `INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price) 
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [id, item.productId, item.quantity, item.unitPrice, item.quantity * item.unitPrice]
                     );
                 }
             }
@@ -125,8 +122,8 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async delete(id: number): Promise<void> {
         try {
-            await this.run(`DELETE FROM order_items WHERE order_id = ?`, [id]);
-            await this.run(`DELETE FROM orders WHERE id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM order_items WHERE order_id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM orders WHERE id = ?`, [id]);
         } catch (error) {
             throw new Error(`Error deleting order: ${error}`);
         }
@@ -134,7 +131,7 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async findByCustomerId(customerId: number): Promise<OrderModel[]> {
         try {
-            const rows = await this.all(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM orders WHERE customer_id = ? ORDER BY order_date DESC`,
                 [customerId]
             );
@@ -153,7 +150,7 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async findByStatus(status: string): Promise<OrderModel[]> {
         try {
-            const rows = await this.all(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM orders WHERE status = ? ORDER BY order_date DESC`,
                 [status]
             );
@@ -172,9 +169,9 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
 
     async updateStatus(id: number, status: string): Promise<OrderModel> {
         try {
-            await this.run(
-                `UPDATE orders SET status = ?, updated_at = ? WHERE id = ?`,
-                [status, new Date().toISOString(), id]
+            await this.dbConnection.execute(
+                `UPDATE orders SET status = ? WHERE id = ?`,
+                [status, id]
             );
             
             const updatedOrder = await this.findById(id);

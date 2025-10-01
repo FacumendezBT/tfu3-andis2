@@ -1,35 +1,31 @@
-import { BigPotatoDao} from './types';
-import { DatabaseConnection } from './DatabaseConnection';
-import { promisify } from 'util';
-import { CategoryModel } from './CategoryModel';
-import { ProductModel } from './ProductModel';
+import { CategoryModel } from "../models/CategoryModel";
+import { ProductModel } from "../models/ProductModel";
+import { BigPotatoDao } from "../models/types";
+import { DatabaseConnection } from "../../config/DatabaseConnection";
 
 export class ProductDAO implements BigPotatoDao<ProductModel, number> {
-    private db = DatabaseConnection.getInstance().getDatabase();
-    private run = promisify(this.db.run.bind(this.db));
-    private get = promisify(this.db.get.bind(this.db));
-    private all = promisify(this.db.all.bind(this.db));
+    private dbConnection = DatabaseConnection.getInstance();
 
     async create(product: ProductModel): Promise<ProductModel> {
         try {
-            const result = await this.run(
+            const result = await this.dbConnection.execute(
                 `INSERT INTO products (name, description, price, stock) VALUES (?, ?, ?, ?)`,
                 [product.name, product.description, product.price, product.stock]
             );
             
-            const productId = (result as any).lastID;
+            const productId = result.insertId;
             
             // Associate categories if provided
             if (product.category && product.category.length > 0) {
                 for (const category of product.category) {
-                    await this.run(
+                    await this.dbConnection.execute(
                         `INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)`,
                         [productId, category.id]
                     );
                 }
             }
             
-            const createdProduct = await this.findById(productId);
+            const createdProduct = await this.findById(Number(productId));
             if (!createdProduct) {
                 throw new Error('Failed to create product');
             }
@@ -41,15 +37,16 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
 
     async findById(id: number): Promise<ProductModel | null> {
         try {
-            const row = await this.get(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM products WHERE id = ?`,
                 [id]
             );
             
-            if (!row) return null;
+            if (!rows || rows.length === 0) return null;
+            const row = rows[0];
             
             // Get associated categories
-            const categories = await this.all(
+            const categories = await this.dbConnection.query(
                 `SELECT c.* FROM categories c 
                  INNER JOIN product_categories pc ON c.id = pc.category_id 
                  WHERE pc.product_id = ?`,
@@ -67,7 +64,7 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
 
     async findAll(): Promise<ProductModel[]> {
         try {
-            const rows = await this.all(`SELECT * FROM products ORDER BY id`);
+            const rows = await this.dbConnection.query(`SELECT * FROM products ORDER BY id`);
             const products = [];
             
             for (const row of rows) {
@@ -83,16 +80,16 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
 
     async update(id: number, product: ProductModel): Promise<ProductModel> {
         try {
-            await this.run(
+            await this.dbConnection.execute(
                 `UPDATE products SET name = ?, description = ?, price = ?, stock = ? WHERE id = ?`,
                 [product.name, product.description, product.price, product.stock, id]
             );
             
             // Update categories
-            await this.run(`DELETE FROM product_categories WHERE product_id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM product_categories WHERE product_id = ?`, [id]);
             if (product.category && product.category.length > 0) {
                 for (const category of product.category) {
-                    await this.run(
+                    await this.dbConnection.execute(
                         `INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)`,
                         [id, category.id]
                     );
@@ -111,8 +108,8 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
 
     async delete(id: number): Promise<void> {
         try {
-            await this.run(`DELETE FROM product_categories WHERE product_id = ?`, [id]);
-            await this.run(`DELETE FROM products WHERE id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM product_categories WHERE product_id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM products WHERE id = ?`, [id]);
         } catch (error) {
             throw new Error(`Error deleting product: ${error}`);
         }
@@ -120,7 +117,7 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
 
     async findByCategory(categoryId: number): Promise<ProductModel[]> {
         try {
-            const rows = await this.all(
+            const rows = await this.dbConnection.query(
                 `SELECT p.* FROM products p 
                  INNER JOIN product_categories pc ON p.id = pc.product_id 
                  WHERE pc.category_id = ?`,
@@ -141,7 +138,7 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
 
     async updateStock(id: number, newStock: number): Promise<ProductModel> {
         try {
-            await this.run(
+            await this.dbConnection.execute(
                 `UPDATE products SET stock = ? WHERE id = ?`,
                 [newStock, id]
             );

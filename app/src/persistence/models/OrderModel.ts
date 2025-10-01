@@ -1,10 +1,11 @@
 import { OrderItemModel } from "./OrderItemModel";
+import { OrderStatus } from "./types";
 
 export class OrderModel{
     public id: number;
     public customerId: number;
     public orderDate: Date;
-    public status: any; // OrderStatus
+    public status: OrderStatus;
     public totalAmount: number;
     public items: OrderItemModel[];
     public updatedAt: Date;
@@ -13,7 +14,7 @@ export class OrderModel{
         this.id = data.id || 0;
         this.customerId = data.customerId || 0;
         this.orderDate = data.orderDate || new Date();
-        this.status = data.status || 'PENDING';
+        this.status = data.status || OrderStatus.PENDING;
         this.totalAmount = data.totalAmount || 0;
         this.items = data.items || [];
         this.updatedAt = data.updatedAt || new Date();

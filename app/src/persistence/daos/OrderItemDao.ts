@@ -1,30 +1,25 @@
-import { BigPotatoDao } from './types';
-import { DatabaseConnection } from './DatabaseConnection';
-import { promisify } from 'util';
-import { OrderItemModel } from './OrderItemModel';
+import { OrderItemModel } from "../models/OrderItemModel";
+import { BigPotatoDao } from "../models/types";
+import { DatabaseConnection } from "../../config/DatabaseConnection";
 
 export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
-    private db = DatabaseConnection.getInstance().getDatabase();
-    private run = promisify(this.db.run.bind(this.db));
-    private get = promisify(this.db.get.bind(this.db));
-    private all = promisify(this.db.all.bind(this.db));
+    private dbConnection = DatabaseConnection.getInstance();
 
     async create(orderItem: OrderItemModel): Promise<OrderItemModel> {
         try {
-            const result = await this.run(
-                `INSERT INTO order_items (order_id, type, product_id, quantity, unit_price, subtotal) 
-                 VALUES (?, ?, ?, ?, ?, ?)`,
+            const result = await this.dbConnection.execute(
+                `INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price) 
+                 VALUES (?, ?, ?, ?, ?)`,
                 [
                     orderItem.orderId,
-                    orderItem.type,
                     orderItem.productId,
                     orderItem.quantity,
                     orderItem.unitPrice,
-                    orderItem.subtotal
+                    orderItem.quantity * orderItem.unitPrice
                 ]
             );
             
-            const createdOrderItem = await this.findById((result as any).lastID);
+            const createdOrderItem = await this.findById(Number(result.insertId));
             if (!createdOrderItem) {
                 throw new Error('Failed to create order item');
             }
@@ -36,18 +31,20 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async findById(id: number): Promise<OrderItemModel | null> {
         try {
-            const row = await this.get(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM order_items WHERE id = ?`,
                 [id]
             );
             
-            if (!row) return null;
+            if (!rows || rows.length === 0) return null;
+            const row = rows[0];
             
             return OrderItemModel.fromJSON({
                 ...row,
                 orderId: row.order_id,
                 productId: row.product_id,
-                unitPrice: row.unit_price
+                unitPrice: row.unit_price,
+                totalPrice: row.total_price
             });
         } catch (error) {
             throw new Error(`Error finding order item by ID: ${error}`);
@@ -56,13 +53,14 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async findAll(): Promise<OrderItemModel[]> {
         try {
-            const rows = await this.all(`SELECT * FROM order_items ORDER BY id`);
+            const rows = await this.dbConnection.query(`SELECT * FROM order_items ORDER BY id`);
             return rows.map((row: any) => 
                 OrderItemModel.fromJSON({
                     ...row,
                     orderId: row.order_id,
                     productId: row.product_id,
-                    unitPrice: row.unit_price
+                    unitPrice: row.unit_price,
+                    totalPrice: row.total_price
                 }).toJSON()
             );
         } catch (error) {
@@ -72,15 +70,14 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async update(id: number, orderItem: OrderItemModel): Promise<OrderItemModel> {
         try {
-            await this.run(
-                `UPDATE order_items SET order_id = ?, type = ?, product_id = ?, quantity = ?, unit_price = ?, subtotal = ? WHERE id = ?`,
+            await this.dbConnection.execute(
+                `UPDATE order_items SET order_id = ?, product_id = ?, quantity = ?, unit_price = ?, total_price = ? WHERE id = ?`,
                 [
                     orderItem.orderId,
-                    orderItem.type,
                     orderItem.productId,
                     orderItem.quantity,
                     orderItem.unitPrice,
-                    orderItem.subtotal,
+                    orderItem.quantity * orderItem.unitPrice,
                     id
                 ]
             );
@@ -97,7 +94,7 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async delete(id: number): Promise<void> {
         try {
-            await this.run(`DELETE FROM order_items WHERE id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM order_items WHERE id = ?`, [id]);
         } catch (error) {
             throw new Error(`Error deleting order item: ${error}`);
         }
@@ -105,7 +102,7 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async findByOrderId(orderId: number): Promise<OrderItemModel[]> {
         try {
-            const rows = await this.all(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM order_items WHERE order_id = ? ORDER BY id`,
                 [orderId]
             );
@@ -115,7 +112,8 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
                     ...row,
                     orderId: row.order_id,
                     productId: row.product_id,
-                    unitPrice: row.unit_price
+                    unitPrice: row.unit_price,
+                    totalPrice: row.total_price
                 }).toJSON()
             );
         } catch (error) {
@@ -125,7 +123,7 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async findByProductId(productId: number): Promise<OrderItemModel[]> {
         try {
-            const rows = await this.all(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM order_items WHERE product_id = ? ORDER BY id DESC`,
                 [productId]
             );
@@ -135,7 +133,8 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
                     ...row,
                     orderId: row.order_id,
                     productId: row.product_id,
-                    unitPrice: row.unit_price
+                    unitPrice: row.unit_price,
+                    totalPrice: row.total_price
                 }).toJSON()
             );
         } catch (error) {
@@ -145,7 +144,7 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
 
     async deleteByOrderId(orderId: number): Promise<void> {
         try {
-            await this.run(`DELETE FROM order_items WHERE order_id = ?`, [orderId]);
+            await this.dbConnection.execute(`DELETE FROM order_items WHERE order_id = ?`, [orderId]);
         } catch (error) {
             throw new Error(`Error deleting order items by order ID: ${error}`);
         }

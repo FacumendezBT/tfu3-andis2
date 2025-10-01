@@ -1,5 +1,5 @@
-import { CustomerDAO } from '../models/CustomerDao';
-import { CustomerModel } from '../models/CustomerModel';
+import { CustomerDAO } from '../persistence/models/CustomerDao';
+import { CustomerModel } from '../../persistence/models/CustomerModel';
 
 export class CustomerService {
     private customerDAO: CustomerDAO;

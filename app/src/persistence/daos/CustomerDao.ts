@@ -1,22 +1,18 @@
-import { BigPotatoDao } from './types';
-import { DatabaseConnection } from './DatabaseConnection';
-import { promisify } from 'util';
-import { CustomerModel } from './CustomerModel';
+import { CustomerModel } from "../models/CustomerModel";
+import { BigPotatoDao } from "../models/types";
+import { DatabaseConnection } from "../../config/DatabaseConnection";
 
 export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
-    private db = DatabaseConnection.getInstance().getDatabase();
-    private run = promisify(this.db.run.bind(this.db));
-    private get = promisify(this.db.get.bind(this.db));
-    private all = promisify(this.db.all.bind(this.db));
+    private dbConnection = DatabaseConnection.getInstance();
 
     async create(customer: CustomerModel): Promise<CustomerModel> {
         try {
-            const result = await this.run(
+            const result = await this.dbConnection.execute(
                 `INSERT INTO customers (name, email, phone, address) VALUES (?, ?, ?, ?)`,
                 [customer.name, customer.email, customer.phone, customer.address]
             );
             
-            const createdCustomer = await this.findById((result as any).lastID);
+            const createdCustomer = await this.findById(Number(result.insertId));
             if (!createdCustomer) {
                 throw new Error('Failed to create customer');
             }
@@ -28,12 +24,12 @@ export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
 
     async findById(id: number): Promise<CustomerModel | null> {
         try {
-            const row = await this.get(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM customers WHERE id = ?`,
                 [id]
             );
             
-            return row ? CustomerModel.fromJSON(row) : null;
+            return rows && rows.length > 0 ? CustomerModel.fromJSON(rows[0]) : null;
         } catch (error) {
             throw new Error(`Error finding customer by ID: ${error}`);
         }
@@ -41,7 +37,7 @@ export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
 
     async findAll(): Promise<CustomerModel[]> {
         try {
-            const rows = await this.all(`SELECT * FROM customers ORDER BY id`);
+            const rows = await this.dbConnection.query(`SELECT * FROM customers ORDER BY id`);
             return rows.map((row: any) => CustomerModel.fromJSON(row).toJSON());
         } catch (error) {
             throw new Error(`Error finding all customers: ${error}`);
@@ -50,7 +46,7 @@ export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
 
     async update(id: number, customer: CustomerModel): Promise<CustomerModel> {
         try {
-            await this.run(
+            await this.dbConnection.execute(
                 `UPDATE customers SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?`,
                 [customer.name, customer.email, customer.phone, customer.address, id]
             );
@@ -67,7 +63,7 @@ export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
 
     async delete(id: number): Promise<void> {
         try {
-            await this.run(`DELETE FROM customers WHERE id = ?`, [id]);
+            await this.dbConnection.execute(`DELETE FROM customers WHERE id = ?`, [id]);
         } catch (error) {
             throw new Error(`Error deleting customer: ${error}`);
         }
@@ -75,12 +71,12 @@ export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
 
     async findByEmail(email: string): Promise<CustomerModel | null> {
         try {
-            const row = await this.get(
+            const rows = await this.dbConnection.query(
                 `SELECT * FROM customers WHERE email = ?`,
                 [email]
             );
             
-            return row ? CustomerModel.fromJSON(row) : null;
+            return rows && rows.length > 0 ? CustomerModel.fromJSON(rows[0]) : null;
         } catch (error) {
             throw new Error(`Error finding customer by email: ${error}`);
         }
