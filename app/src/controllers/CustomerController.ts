@@ -1,38 +1,62 @@
 import { Request, Response } from "express";
+import { CustomerService } from "../services/CustomerService";
 
-let customers = [
-  { id: 1, name: "Juan Pérez", email: "juan@example.com" },
-  { id: 2, name: "Ana López", email: "ana@example.com" },
-];
+const customerService = new CustomerService();
 
-export const getAllCustomers = (req: Request, res: Response) => {
-  res.json(customers);
+export const getAllCustomers = async (req: Request, res: Response) => {
+    try {
+        const customers = await customerService.getAllCustomers();
+        res.status(200).json(customers);
+    } catch (error: any) {
+        res.status(500).json({ message: "Error al obtener los clientes", error: error.message });
+    }
 };
 
-export const getCustomerById = (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const customer = customers.find(c => c.id === id);
-  if (!customer) return res.status(404).json({ message: "Customer not found" });
-  res.json(customer);
+export const getCustomerById = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        const customer = await customerService.getCustomerById(id);
+        
+        if (!customer) {
+            return res.status(404).json({ message: "Cliente no encontrado" });
+        }
+        
+        res.status(200).json(customer);
+    } catch (error: any) {
+        res.status(500).json({ message: "Error al obtener el cliente", error: error.message });
+    }
 };
 
-export const createCustomer = (req: Request, res: Response) => {
-  const newCustomer = { id: customers.length + 1, ...req.body };
-  customers.push(newCustomer);
-  res.status(201).json(newCustomer);
+export const createCustomer = async (req: Request, res: Response) => {
+    try {
+        const newCustomer = await customerService.createCustomer(req.body);
+        res.status(201).json(newCustomer);
+    } catch (error: any) {
+        res.status(500).json({ message: "Error al crear el cliente", error: error.message });
+    }
 };
 
-export const updateCustomer = (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const index = customers.findIndex(c => c.id === id);
-  if (index === -1) return res.status(404).json({ message: "Customer not found" });
-
-  customers[index] = { ...customers[index], ...req.body };
-  res.json(customers[index]);
+export const updateCustomer = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        const updatedCustomer = await customerService.updateCustomer(id, req.body);
+        
+        if (!updatedCustomer) {
+            return res.status(404).json({ message: "Cliente no encontrado" });
+        }
+        
+        res.status(200).json(updatedCustomer);
+    } catch (error: any) {
+        res.status(500).json({ message: "Error al actualizar el cliente", error: error.message });
+    }
 };
 
-export const deleteCustomer = (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  customers = customers.filter(c => c.id !== id);
-  res.status(204).send();
+export const deleteCustomer = async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(req.params.id);
+        await customerService.deleteCustomer(id);
+        res.status(204).send(); // No content
+    } catch (error: any) {
+        res.status(500).json({ message: "Error al eliminar el cliente", error: error.message });
+    }
 };
