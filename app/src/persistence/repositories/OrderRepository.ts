@@ -1,13 +1,16 @@
 import { OrderModel } from '../models/OrderModel';
 import { OrderDAO } from '../daos/OrderDao';
+import { OrderItemDAO } from '../daos/OrderItemDao';
 import { OrderStatus } from '../models/types';
 import { IOrderRepository } from '../../business-logic/repositories/IOrderRepository';
 
 export class OrderRepository implements IOrderRepository {
     private orderDAO: OrderDAO;
+    private orderItemDAO: OrderItemDAO;
 
     constructor() {
         this.orderDAO = new OrderDAO();
+        this.orderItemDAO = new OrderItemDAO();
     }
 
     async create(order: OrderModel): Promise<OrderModel> {
@@ -15,8 +18,19 @@ export class OrderRepository implements IOrderRepository {
             this.validateOrder(order);
             this.calculateOrderTotal(order);
 
+            // Repository coordinates: first create the order
             const createdOrder = await this.orderDAO.create(order);
-            return this.mapToModel(createdOrder);
+            
+            // Then create the order items if provided
+            if (order.items && order.items.length > 0) {
+                for (const item of order.items) {
+                    item.orderId = createdOrder.id!;
+                    await this.orderItemDAO.create(item);
+                }
+            }
+            
+            // Return complete order with items
+            return await this.getOrderWithItems(createdOrder.id!);
         } catch (error) {
             throw new Error(`Error del repositorio creando orden: ${error}`);
         }
@@ -28,8 +42,11 @@ export class OrderRepository implements IOrderRepository {
                 throw new Error('El ID de la orden debe ser un número positivo');
             }
 
+            // Repository coordinates: get order and its items separately
             const order = await this.orderDAO.findById(id);
-            return order ? this.mapToModel(order) : null;
+            if (!order) return null;
+            
+            return await this.getOrderWithItems(id);
         } catch (error) {
             throw new Error(`Error del repositorio buscando orden por ID: ${error}`);
         }
@@ -38,7 +55,15 @@ export class OrderRepository implements IOrderRepository {
     async findAll(): Promise<OrderModel[]> {
         try {
             const orders = await this.orderDAO.findAll();
-            return orders.map(order => this.mapToModel(order));
+            const ordersWithItems = [];
+            
+            // Repository coordinates: get each order with its items
+            for (const order of orders) {
+                const orderWithItems = await this.getOrderWithItems(order.id!);
+                ordersWithItems.push(orderWithItems);
+            }
+            
+            return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando todas las órdenes: ${error}`);
         }
@@ -53,8 +78,19 @@ export class OrderRepository implements IOrderRepository {
             this.validateOrder(order);
             this.calculateOrderTotal(order);
 
-            const updatedOrder = await this.orderDAO.update(id, order);
-            return this.mapToModel(updatedOrder);
+            // Repository coordinates: update order first
+            await this.orderDAO.update(id, order);
+            
+            // Then update order items - delete existing and recreate
+            await this.orderItemDAO.deleteByOrderId(id);
+            if (order.items && order.items.length > 0) {
+                for (const item of order.items) {
+                    item.orderId = id;
+                    await this.orderItemDAO.create(item);
+                }
+            }
+            
+            return await this.getOrderWithItems(id);
         } catch (error) {
             throw new Error(`Error del repositorio actualizando orden: ${error}`);
         }
@@ -71,6 +107,8 @@ export class OrderRepository implements IOrderRepository {
                 throw new Error('No se pueden eliminar órdenes entregadas');
             }
 
+            // Repository coordina: primero elimina los items, luego la orden
+            await this.orderItemDAO.deleteByOrderId(id);
             await this.orderDAO.delete(id);
         } catch (error) {
             throw new Error(`Error del repositorio eliminando orden: ${error}`);
@@ -84,7 +122,14 @@ export class OrderRepository implements IOrderRepository {
             }
 
             const orders = await this.orderDAO.findByCustomerId(customerId);
-            return orders.map(order => this.mapToModel(order));
+            const ordersWithItems = [];
+            
+            for (const order of orders) {
+                const orderWithItems = await this.getOrderWithItems(order.id!);
+                ordersWithItems.push(orderWithItems);
+            }
+            
+            return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes por ID de cliente: ${error}`);
         }
@@ -97,7 +142,14 @@ export class OrderRepository implements IOrderRepository {
             }
 
             const orders = await this.orderDAO.findByStatus(status);
-            return orders.map(order => this.mapToModel(order));
+            const ordersWithItems = [];
+            
+            for (const order of orders) {
+                const orderWithItems = await this.getOrderWithItems(order.id!);
+                ordersWithItems.push(orderWithItems);
+            }
+            
+            return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes por estado: ${error}`);
         }
@@ -118,8 +170,8 @@ export class OrderRepository implements IOrderRepository {
                 this.validateStatusTransition(existingOrder.status, status);
             }
 
-            const updatedOrder = await this.orderDAO.updateStatus(id, status);
-            return this.mapToModel(updatedOrder);
+            await this.orderDAO.updateStatus(id, status);
+            return await this.getOrderWithItems(id);
         } catch (error) {
             throw new Error(`Error del repositorio actualizando estado de orden: ${error}`);
         }
@@ -137,7 +189,13 @@ export class OrderRepository implements IOrderRepository {
                 return orderDate >= startDate && orderDate <= endDate;
             });
 
-            return filteredOrders.map(order => this.mapToModel(order));
+            const ordersWithItems = [];
+            for (const order of filteredOrders) {
+                const orderWithItems = await this.getOrderWithItems(order.id!);
+                ordersWithItems.push(orderWithItems);
+            }
+            
+            return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes por rango de fechas: ${error}`);
         }
@@ -145,8 +203,7 @@ export class OrderRepository implements IOrderRepository {
 
     async findPendingOrders(): Promise<OrderModel[]> {
         try {
-            const orders = await this.orderDAO.findByStatus(OrderStatus.PENDING);
-            return orders.map(order => this.mapToModel(order));
+            return await this.findByStatus(OrderStatus.PENDING);
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes pendientes: ${error}`);
         }
@@ -159,6 +216,22 @@ export class OrderRepository implements IOrderRepository {
         } catch (error) {
             throw new Error(`Error del repositorio calculando ingresos totales: ${error}`);
         }
+    }
+
+    private async getOrderWithItems(orderId: number): Promise<OrderModel> {
+        // Repository coordinates: get order and its items separately
+        const order = await this.orderDAO.findById(orderId);
+        if (!order) {
+            throw new Error(`Orden con ID ${orderId} no encontrada`);
+        }
+        
+        // Get associated order items
+        const items = await this.orderItemDAO.findByOrderId(orderId);
+        
+        // Combine order with items
+        order.items = items;
+        
+        return this.mapToModel(order);
     }
 
     private mapToModel(daoResult: OrderModel): OrderModel {

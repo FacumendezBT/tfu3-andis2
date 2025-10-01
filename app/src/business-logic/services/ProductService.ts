@@ -1,15 +1,12 @@
 import { ProductRepository } from '../../persistence/repositories/ProductRepository';
 import { ProductModel } from '../../persistence/models/ProductModel';
-import { CategoryDAO } from '../../persistence/daos/CategoryDao';
 import { IProductRepository } from '../repositories/IProductRepository';
 
 export class ProductService {
     private productRepository: IProductRepository;
-    private categoryDAO: CategoryDAO;
 
     constructor() {
         this.productRepository = new ProductRepository();
-        this.categoryDAO = new CategoryDAO();
     }
 
     /**
