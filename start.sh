@@ -1,80 +1,69 @@
 #!/bin/bash
 
-# TFU3 ANDIS2 Application Startup Script
-# This script helps you start the entire application stack
-
-echo "🚀 Starting TFU3 ANDIS2 E-commerce Application"
+echo "🚀 Iniciando Aplicación E-commerce TFU3 ANDIS2"
 echo "================================================"
 
-# Check if docker and docker-compose are installed
 if ! command -v docker &> /dev/null; then
-    echo "❌ Error: Docker is not installed. Please install Docker first."
+    echo "❌ Error: Docker no está instalado. Por favor instale Docker primero."
     exit 1
 fi
 
 if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Error: Docker Compose is not installed. Please install Docker Compose first."
+    echo "❌ Error: Docker Compose no está instalado. Por favor instale Docker Compose primero."
     exit 1
 fi
 
-# Check if Docker is running
 if ! docker info &> /dev/null; then
-    echo "❌ Error: Docker is not running. Please start Docker first."
+    echo "❌ Error: Docker no se está ejecutando. Por favor inicie Docker primero."
     exit 1
 fi
 
-echo "✅ Docker is ready"
+echo "✅ Docker está listo"
 
-# Clean up any existing containers
-echo "🧹 Cleaning up existing containers..."
+echo "🧹 Limpiando contenedores existentes..."
 docker-compose down --volumes --remove-orphans
 
-# Build and start the application
-echo "🔨 Building and starting the application..."
+echo "🔨 Construyendo e iniciando la aplicación..."
 docker-compose up --build -d
 
-echo "⏳ Waiting for services to be ready..."
+echo "⏳ Esperando que los servicios estén listos..."
 
-# Wait for MySQL to be healthy
-echo "🔄 Waiting for MySQL to initialize..."
+echo "🔄 Esperando que MySQL se inicialice..."
 while ! docker-compose exec -T mysql mysqladmin ping -h localhost -u appuser -papppassword --silent 2>/dev/null; do
-    echo "   MySQL is still initializing..."
+    echo "   MySQL aún se está inicializando..."
     sleep 5
 done
-echo "✅ MySQL is ready"
+echo "✅ MySQL está listo"
 
-# Wait for app services to be ready
-echo "🔄 Waiting for application services..."
+echo "🔄 Esperando servicios de la aplicación..."
 sleep 10
 
-# Check if services are running
-echo "📊 Service Status:"
+echo "📊 Estado de los Servicios:"
 docker-compose ps
 
-# Test the application
-echo "🧪 Testing the application..."
+echo "🧪 Probando la aplicación..."
 if curl -s http://localhost:8080/health > /dev/null 2>&1; then
-    echo "✅ Application is responding"
+    echo "✅ La aplicación está respondiendo"
     echo ""
-    echo "🎉 Application is ready!"
+    echo "🎉 ¡La aplicación está lista!"
     echo "================================================"
-    echo "📱 Application URL: http://localhost:8080"
-    echo "🔍 Health Check: http://localhost:8080/health"
-    echo "📚 API Endpoints:"
-    echo "   • GET  /api/customers       - List all customers"
-    echo "   • GET  /api/products        - List all products"
-    echo "   • GET  /api/orders          - List all orders"
+    echo "📱 URL de la Aplicación: http://localhost:8080"
+    echo "🔍 Verificación de Salud: http://localhost:8080/health"
+    echo "📚 Endpoints de la API:"
+    echo "   • GET  /api/customers       - Listar todos los clientes"
+    echo "   • GET  /api/products        - Listar todos los productos"
+    echo "   • GET  /api/orders          - Listar todas las órdenes"
     echo ""
-    echo "🗄️  Database Access:"
+    echo "🗄️  Acceso a la Base de Datos:"
     echo "   • Host: localhost"
-    echo "   • Port: 3306"
-    echo "   • Database: ecommerce_db"
-    echo "   • Username: appuser"
-    echo "   • Password: apppassword"
+    echo "   • Puerto: 3306"
+    echo "   • Base de Datos: ecommerce_db"
+    echo "   • Usuario: appuser"
+    echo "   • Contraseña: apppassword"
     echo ""
-    echo "📊 View logs with: docker-compose logs -f"
-    echo "🛑 Stop with: docker-compose down"
+    echo "📊 Ver logs con: docker-compose logs -f"
+    echo "🛑 Detener con: docker-compose down"
 else
-    echo "❌ Application is not responding. Check the logs:"
+    echo "❌ La aplicación no está respondiendo. Revise los logs:"
     echo "   docker-compose logs"
 fi

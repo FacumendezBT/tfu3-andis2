@@ -19,7 +19,7 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ status: "ok", container: process.env.HOSTNAME });
 });
 
 app.use("/api/customers", CustomerRouter);
