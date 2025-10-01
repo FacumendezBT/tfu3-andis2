@@ -1,22 +1,25 @@
-import { OrderDAO } from '../persistence/models/OrderDao';
+import { OrderRepository } from '../../persistence/repositories/OrderRepository';
+import { ProductRepository } from '../../persistence/repositories/ProductRepository';
 import { OrderModel } from '../../persistence/models/OrderModel';
-import { ProductDAO } from '../persistence/models/ProductDao';
 import { OrderItemModel } from '../../persistence/models/OrderItemModel';
+import { OrderStatus } from '../../persistence/models/types';
+import { IOrderRepository } from '../repositories/IOrderRepository';
+import { IProductRepository } from '../repositories/IProductRepository';
 
 export class OrderService {
-    private orderDAO: OrderDAO;
-    private productDAO: ProductDAO;
+    private orderRepository: IOrderRepository;
+    private productRepository: IProductRepository;
 
     constructor() {
-        this.orderDAO = new OrderDAO();
-        this.productDAO = new ProductDAO();
+        this.orderRepository = new OrderRepository();
+        this.productRepository = new ProductRepository();
     }
 
     /**
      * Obtiene todas las órdenes.
      */
     public async getAllOrders(): Promise<OrderModel[]> {
-        return this.orderDAO.findAll();
+        return this.orderRepository.findAll();
     }
 
     /**
@@ -24,8 +27,8 @@ export class OrderService {
      * @param id El ID de la orden.
      */
     public async getOrderById(id: number): Promise<OrderModel | null> {
-        // El DAO ya se encarga de buscar los items de la orden.
-        return this.orderDAO.findById(id);
+        // El Repository ya se encarga de buscar los items de la orden.
+        return this.orderRepository.findById(id);
     }
 
     /**
@@ -33,7 +36,7 @@ export class OrderService {
      * @param customerId El ID del cliente.
      */
     public async getOrdersByCustomerId(customerId: number): Promise<OrderModel[]> {
-        return this.orderDAO.findByCustomerId(customerId);
+        return this.orderRepository.findByCustomerId(customerId);
     }
 
     /**
@@ -50,7 +53,7 @@ export class OrderService {
 
         // 1. Validar stock y calcular precios y total
         for (const item of orderData.items) {
-            const product = await this.productDAO.findById(item.productId);
+            const product = await this.productRepository.findById(item.productId);
             if (!product) {
                 throw new Error(`El producto con ID ${item.productId} no existe.`);
             }
@@ -69,17 +72,20 @@ export class OrderService {
             ...orderData,
             items: itemsWithDetails,
             totalAmount: totalAmount,
-            status: 'PENDING', // Estado inicial por defecto
+            status: OrderStatus.PENDING, // Estado inicial por defecto
             orderDate: new Date(),
             updatedAt: new Date()
         });
 
         // 3. Crear la orden en la base de datos
-        const createdOrder = await this.orderDAO.create(newOrder);
+        const createdOrder = await this.orderRepository.create(newOrder);
 
         // 4. Actualizar el stock de los productos
         for (const item of createdOrder.items) {
-            await this.productDAO.updateStock(item.productId, -item.quantity); // Suponiendo que updateStock puede reducir
+            const currentProduct = await this.productRepository.findById(item.productId);
+            if (currentProduct) {
+                await this.productRepository.updateStock(item.productId, currentProduct.stock - item.quantity);
+            }
         }
 
         return createdOrder;
@@ -90,8 +96,8 @@ export class OrderService {
      * @param id El ID de la orden.
      * @param status El nuevo estado.
      */
-    public async updateOrderStatus(id: number, status: string): Promise<OrderModel | null> {
-        return this.orderDAO.updateStatus(id, status);
+    public async updateOrderStatus(id: number, status: OrderStatus): Promise<OrderModel | null> {
+        return this.orderRepository.updateStatus(id, status);
     }
 
     /**
@@ -100,16 +106,49 @@ export class OrderService {
      */
     public async deleteOrder(id: number): Promise<void> {
         // 1. Obtener la orden para saber qué productos reponer
-        const orderToDelete = await this.orderDAO.findById(id);
+        const orderToDelete = await this.orderRepository.findById(id);
         if (orderToDelete && orderToDelete.items) {
             // 2. Reponer el stock
             for (const item of orderToDelete.items) {
-                // Suponiendo que updateStock puede sumar si la cantidad es positiva
-                await this.productDAO.updateStock(item.productId, item.quantity);
+                const currentProduct = await this.productRepository.findById(item.productId);
+                if (currentProduct) {
+                    await this.productRepository.updateStock(item.productId, currentProduct.stock + item.quantity);
+                }
             }
         }
 
         // 3. Eliminar la orden
-        return this.orderDAO.delete(id);
+        return this.orderRepository.delete(id);
+    }
+
+    /**
+     * Obtiene órdenes por estado.
+     * @param status El estado de las órdenes a buscar.
+     */
+    public async getOrdersByStatus(status: OrderStatus): Promise<OrderModel[]> {
+        return this.orderRepository.findByStatus(status);
+    }
+
+    /**
+     * Obtiene todas las órdenes pendientes.
+     */
+    public async getPendingOrders(): Promise<OrderModel[]> {
+        return this.orderRepository.findPendingOrders();
+    }
+
+    /**
+     * Obtiene órdenes dentro de un rango de fechas.
+     * @param startDate Fecha de inicio.
+     * @param endDate Fecha de fin.
+     */
+    public async getOrdersByDateRange(startDate: Date, endDate: Date): Promise<OrderModel[]> {
+        return this.orderRepository.findOrdersByDateRange(startDate, endDate);
+    }
+
+    /**
+     * Calcula el revenue total de órdenes entregadas.
+     */
+    public async calculateTotalRevenue(): Promise<number> {
+        return this.orderRepository.calculateTotalRevenue();
     }
 }

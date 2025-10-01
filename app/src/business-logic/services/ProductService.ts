@@ -1,13 +1,14 @@
-import { ProductDAO } from '../persistence/models/ProductDao';
+import { ProductRepository } from '../../persistence/repositories/ProductRepository';
 import { ProductModel } from '../../persistence/models/ProductModel';
-import { CategoryDAO } from '../persistence/models/CategoryDao';
+import { CategoryDAO } from '../../persistence/daos/CategoryDao';
+import { IProductRepository } from '../repositories/IProductRepository';
 
 export class ProductService {
-    private productDAO: ProductDAO;
+    private productRepository: IProductRepository;
     private categoryDAO: CategoryDAO;
 
     constructor() {
-        this.productDAO = new ProductDAO();
+        this.productRepository = new ProductRepository();
         this.categoryDAO = new CategoryDAO();
     }
 
@@ -15,7 +16,7 @@ export class ProductService {
      * Obtiene todos los productos.
      */
     public async getAllProducts(): Promise<ProductModel[]> {
-        return this.productDAO.findAll();
+        return this.productRepository.findAll();
     }
 
     /**
@@ -23,8 +24,8 @@ export class ProductService {
      * @param id El ID del producto.
      */
     public async getProductById(id: number): Promise<ProductModel | null> {
-        // El DAO ya se encarga de buscar las categorías.
-        return this.productDAO.findById(id);
+        // El Repository ya se encarga de buscar las categorías.
+        return this.productRepository.findById(id);
     }
     
     /**
@@ -32,7 +33,7 @@ export class ProductService {
      * @param categoryId El ID de la categoría.
      */
     public async getProductsByCategory(categoryId: number): Promise<ProductModel[]> {
-        return this.productDAO.findByCategory(categoryId);
+        return this.productRepository.findByCategory(categoryId);
     }
 
     /**
@@ -41,7 +42,7 @@ export class ProductService {
      */
     public async createProduct(productData: Partial<ProductModel>): Promise<ProductModel> {
         const newProduct = new ProductModel(productData);
-        return this.productDAO.create(newProduct);
+        return this.productRepository.create(newProduct);
     }
 
     /**
@@ -50,7 +51,7 @@ export class ProductService {
      * @param productData Datos parciales para actualizar.
      */
     public async updateProduct(id: number, productData: Partial<ProductModel>): Promise<ProductModel | null> {
-        const existingProduct = await this.productDAO.findById(id);
+        const existingProduct = await this.productRepository.findById(id);
         if (!existingProduct) {
             return null; // O lanzar un error
         }
@@ -62,7 +63,7 @@ export class ProductService {
             id: id // Asegura que el ID no cambie
         });
         
-        return this.productDAO.update(id, updatedProductData);
+        return this.productRepository.update(id, updatedProductData);
     }
 
     /**
@@ -70,6 +71,31 @@ export class ProductService {
      * @param id El ID del producto a eliminar.
      */
     public async deleteProduct(id: number): Promise<void> {
-        return this.productDAO.delete(id);
+        return this.productRepository.delete(id);
+    }
+
+    /**
+     * Busca productos por nombre.
+     * @param name El nombre o parte del nombre a buscar.
+     */
+    public async searchProductsByName(name: string): Promise<ProductModel[]> {
+        return this.productRepository.findByName(name);
+    }
+
+    /**
+     * Obtiene productos con stock bajo.
+     * @param threshold El umbral de stock bajo (por defecto 10).
+     */
+    public async getLowStockProducts(threshold: number = 10): Promise<ProductModel[]> {
+        return this.productRepository.findLowStockProducts(threshold);
+    }
+
+    /**
+     * Actualiza solo el stock de un producto.
+     * @param id El ID del producto.
+     * @param newStock El nuevo valor de stock.
+     */
+    public async updateProductStock(id: number, newStock: number): Promise<ProductModel> {
+        return this.productRepository.updateStock(id, newStock);
     }
 }

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { ProductService } from "../services/ProductService";
+import { ProductService } from "../../business-logic/services/ProductService";
 
 const productService = new ProductService();
 

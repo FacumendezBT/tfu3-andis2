@@ -1,18 +1,19 @@
-import { CustomerDAO } from '../persistence/models/CustomerDao';
+import { CustomerRepository } from '../../persistence/repositories/CustomerRepository';
 import { CustomerModel } from '../../persistence/models/CustomerModel';
+import { ICustomerRepository } from '../repositories/ICustomerRepository';
 
 export class CustomerService {
-    private customerDAO: CustomerDAO;
+    private customerRepository: ICustomerRepository;
 
     constructor() {
-        this.customerDAO = new CustomerDAO();
+        this.customerRepository = new CustomerRepository();
     }
 
     /**
      * Obtiene todos los clientes.
      */
     public async getAllCustomers(): Promise<CustomerModel[]> {
-        return this.customerDAO.findAll();
+        return this.customerRepository.findAll();
     }
 
     /**
@@ -20,7 +21,7 @@ export class CustomerService {
      * @param id El ID del cliente.
      */
     public async getCustomerById(id: number): Promise<CustomerModel | null> {
-        return this.customerDAO.findById(id);
+        return this.customerRepository.findById(id);
     }
 
     /**
@@ -28,7 +29,7 @@ export class CustomerService {
      * @param email El email del cliente.
      */
     public async getCustomerByEmail(email: string): Promise<CustomerModel | null> {
-        return this.customerDAO.findByEmail(email);
+        return this.customerRepository.findByEmail(email);
     }
 
     /**
@@ -37,7 +38,7 @@ export class CustomerService {
      */
     public async createCustomer(customerData: Partial<CustomerModel>): Promise<CustomerModel> {
         const newCustomer = new CustomerModel(customerData);
-        return this.customerDAO.create(newCustomer);
+        return this.customerRepository.create(newCustomer);
     }
 
     /**
@@ -46,7 +47,7 @@ export class CustomerService {
      * @param customerData Datos parciales para actualizar.
      */
     public async updateCustomer(id: number, customerData: Partial<CustomerModel>): Promise<CustomerModel | null> {
-        const existingCustomer = await this.customerDAO.findById(id);
+        const existingCustomer = await this.customerRepository.findById(id);
         if (!existingCustomer) {
             return null; // O lanzar un error
         }
@@ -58,7 +59,7 @@ export class CustomerService {
             id: id // Asegura que el ID no cambie
         });
 
-        return this.customerDAO.update(id, updatedCustomerData);
+        return this.customerRepository.update(id, updatedCustomerData);
     }
 
     /**
@@ -66,6 +67,21 @@ export class CustomerService {
      * @param id El ID del cliente a eliminar.
      */
     public async deleteCustomer(id: number): Promise<void> {
-        return this.customerDAO.delete(id);
+        return this.customerRepository.delete(id);
+    }
+
+    /**
+     * Busca clientes por nombre.
+     * @param name El nombre o parte del nombre a buscar.
+     */
+    public async searchCustomersByName(name: string): Promise<CustomerModel[]> {
+        return this.customerRepository.findByName(name);
+    }
+
+    /**
+     * Obtiene todos los clientes activos.
+     */
+    public async getActiveCustomers(): Promise<CustomerModel[]> {
+        return this.customerRepository.findActiveCustomers();
     }
 }
