@@ -1,12 +1,23 @@
-FROM node:24
+FROM node:20 AS build
 
 WORKDIR /usr/src/app
 
 COPY app/package*.json ./
-RUN npm install --production
+COPY app/tsconfig.json ./
+RUN npm ci
 
-COPY . .
-RUN tsc
+COPY app/. ./
+RUN npm run build
 
-EXPOSE 5000
-CMD ["node", "app/src/app.js"]
+FROM node:20-slim AS production
+
+ENV NODE_ENV=production
+WORKDIR /usr/src/app
+
+COPY app/package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build /usr/src/app/dist ./dist
+
+EXPOSE 3000
+CMD ["node", "dist/index.js"]
