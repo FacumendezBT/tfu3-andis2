@@ -401,3 +401,4 @@ FodyWeavers.xsd
 *.sln.iml
 
 app/node_modules/*
+app/dist/*
