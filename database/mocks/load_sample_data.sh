@@ -1,17 +1,5 @@
 #!/bin/bash
 
-mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" -e "
-SELECT 'clientes' as tabla, COUNT(*) as cantidad FROM customers
-UNION ALL
-SELECT 'categorías', COUNT(*) FROM categories  
-UNION ALL
-SELECT 'productos', COUNT(*) FROM products
-UNION ALL
-SELECT 'pedidos', COUNT(*) FROM orders
-UNION ALL
-SELECT 'artículos_pedido', COUNT(*) FROM order_items;
-"mplo
-
 set -e
 
 DB_HOST=${DB_HOST:-localhost}
