@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { OrderService } from "../../business-logic/services/OrderService";
+import { OrderStatus } from "../../persistence/models/types";
 
 const orderService = new OrderService();
 
@@ -41,13 +42,19 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
 export const updateOrderStatus = async (req: Request, res: Response): Promise<Response> => {
     try {
         const id = parseInt(req.params.id);
-        const { status } = req.body; // Se espera un body como { "status": "COMPLETED" }
+        const { status } = req.body; // Se espera un body como { "status": "delivered" }
 
         if (!status) {
             return res.status(400).json({ message: "El estado (status) es requerido" });
         }
 
-        const updatedOrder = await orderService.updateOrderStatus(id, status);
+        const normalizedStatus = String(status).toLowerCase() as OrderStatus;
+
+        if (!Object.values(OrderStatus).includes(normalizedStatus)) {
+            return res.status(400).json({ message: `Estado de orden inválido: ${status}` });
+        }
+
+        const updatedOrder = await orderService.updateOrderStatus(id, normalizedStatus);
 
         if (!updatedOrder) {
             return res.status(404).json({ message: "Orden no encontrada" });

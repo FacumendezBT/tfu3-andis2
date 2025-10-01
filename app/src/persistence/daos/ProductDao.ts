@@ -54,7 +54,7 @@ export class ProductDAO implements BigPotatoDao<ProductModel, number> {
             );
             
             const product = ProductModel.fromJSON(row);
-            product.category = categories.map((cat: any) => CategoryModel.fromJSON(cat).toJSON());
+            product.category = categories.map((cat: any) => CategoryModel.fromJSON(cat));
             
             return product;
         } catch (error) {

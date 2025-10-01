@@ -38,7 +38,7 @@ export class CustomerDAO implements BigPotatoDao<CustomerModel, number> {
     async findAll(): Promise<CustomerModel[]> {
         try {
             const rows = await this.dbConnection.query(`SELECT * FROM customers ORDER BY id`);
-            return rows.map((row: any) => CustomerModel.fromJSON(row).toJSON());
+            return rows.map((row: any) => CustomerModel.fromJSON(row));
         } catch (error) {
             throw new Error(`Error finding all customers: ${error}`);
         }

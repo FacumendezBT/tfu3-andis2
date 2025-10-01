@@ -59,14 +59,14 @@ export class OrderDAO implements BigPotatoDao<OrderModel, number> {
             );
             
             const order = OrderModel.fromJSON(row);
-            order.items = itemRows.map((itemRow: any) => 
+            order.items = itemRows.map((itemRow: any) =>
                 OrderItemModel.fromJSON({
                     ...itemRow,
                     orderId: itemRow.order_id,
                     productId: itemRow.product_id,
                     unitPrice: itemRow.unit_price,
-                    totalPrice: itemRow.total_price
-                }).toJSON()
+                    subtotal: itemRow.total_price
+                })
             );
             
             return order;

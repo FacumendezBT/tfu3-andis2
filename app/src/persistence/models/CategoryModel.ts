@@ -9,7 +9,13 @@ export class CategoryModel{
         this.description = data.description;
     }
 
-    public toJSON(): string { return JSON.stringify(this); }
+    public toJSON(): Record<string, unknown> {
+        return {
+            id: this.id,
+            name: this.name,
+            description: this.description
+        };
+    }
 
     public static fromJSON(json: any): CategoryModel {
         return new CategoryModel(json);

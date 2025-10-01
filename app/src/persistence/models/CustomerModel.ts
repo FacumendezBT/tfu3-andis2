@@ -13,7 +13,15 @@ export class CustomerModel {
         this.address = data.address || '';
     }
 
-    public toJSON(): string { return JSON.stringify(this); }
+    public toJSON(): Record<string, unknown> {
+        return {
+            id: this.id,
+            name: this.name,
+            email: this.email,
+            phone: this.phone,
+            address: this.address
+        };
+    }
 
     public static fromJSON(json: any): CustomerModel {
         return new CustomerModel(json);

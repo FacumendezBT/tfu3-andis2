@@ -38,7 +38,7 @@ export class CategoryDAO implements BigPotatoDao<CategoryModel, number> {
     async findAll(): Promise<CategoryModel[]> {
         try {
             const rows = await this.dbConnection.query(`SELECT * FROM categories ORDER BY name`);
-            return rows.map((row: any) => CategoryModel.fromJSON(row).toJSON());
+            return rows.map((row: any) => CategoryModel.fromJSON(row));
         } catch (error) {
             throw new Error(`Error finding all categories: ${error}`);
         }

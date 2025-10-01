@@ -54,14 +54,14 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
     async findAll(): Promise<OrderItemModel[]> {
         try {
             const rows = await this.dbConnection.query(`SELECT * FROM order_items ORDER BY id`);
-            return rows.map((row: any) => 
+            return rows.map((row: any) =>
                 OrderItemModel.fromJSON({
                     ...row,
                     orderId: row.order_id,
                     productId: row.product_id,
                     unitPrice: row.unit_price,
-                    totalPrice: row.total_price
-                }).toJSON()
+                    subtotal: row.total_price
+                })
             );
         } catch (error) {
             throw new Error(`Error finding all order items: ${error}`);
@@ -107,14 +107,14 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
                 [orderId]
             );
             
-            return rows.map((row: any) => 
+            return rows.map((row: any) =>
                 OrderItemModel.fromJSON({
                     ...row,
                     orderId: row.order_id,
                     productId: row.product_id,
                     unitPrice: row.unit_price,
-                    totalPrice: row.total_price
-                }).toJSON()
+                    subtotal: row.total_price
+                })
             );
         } catch (error) {
             throw new Error(`Error finding order items by order ID: ${error}`);
@@ -128,14 +128,14 @@ export class OrderItemDAO implements BigPotatoDao<OrderItemModel, number> {
                 [productId]
             );
             
-            return rows.map((row: any) => 
+            return rows.map((row: any) =>
                 OrderItemModel.fromJSON({
                     ...row,
                     orderId: row.order_id,
                     productId: row.product_id,
                     unitPrice: row.unit_price,
-                    totalPrice: row.total_price
-                }).toJSON()
+                    subtotal: row.total_price
+                })
             );
         } catch (error) {
             throw new Error(`Error finding order items by product ID: ${error}`);

@@ -10,18 +10,34 @@ export class OrderItemModel{
     public subtotal: number;
 
     constructor(data: Partial<OrderItemModel> = {}) {
-        this.id = data.id || 0;
-        this.orderId = data.orderId || 0;
-        this.type = data.type   || OrderItemType.PRODUCT;
-        this.productId = data.productId || 0;
-        this.quantity = data.quantity || 0;
-        this.unitPrice = data.unitPrice || 0;
-        this.subtotal = data.subtotal || 0;
+        this.id = data.id ? Number(data.id) : 0;
+        this.orderId = data.orderId ? Number(data.orderId) : 0;
+        this.type = data.type || OrderItemType.PRODUCT;
+        this.productId = data.productId ? Number(data.productId) : 0;
+        this.quantity = data.quantity ? Number(data.quantity) : 0;
+        this.unitPrice = data.unitPrice ? Number(data.unitPrice) : 0;
+        this.subtotal = data.subtotal ? Number(data.subtotal) : this.quantity * this.unitPrice;
     }
 
-    public toJSON(): string { return JSON.stringify(this); }
+    public toJSON(): Record<string, unknown> {
+        return {
+            id: this.id,
+            orderId: this.orderId,
+            type: this.type,
+            productId: this.productId,
+            quantity: this.quantity,
+            unitPrice: this.unitPrice,
+            subtotal: this.subtotal
+        };
+    }
 
     public static fromJSON(json: any): OrderItemModel {
-        return new OrderItemModel(json);
+        return new OrderItemModel({
+            ...json,
+            orderId: json.orderId ?? json.order_id,
+            productId: json.productId ?? json.product_id,
+            unitPrice: json.unitPrice ?? json.unit_price,
+            subtotal: json.subtotal ?? json.totalPrice ?? json.total_price
+        });
     }
 }
