@@ -1,15 +1,16 @@
+import { config as loadEnv } from 'dotenv';
 import mysql from 'mysql2/promise';
+import type { PoolOptions } from 'mysql2/promise';
 
-export interface DatabaseConfig {
+loadEnv();
+
+export type DatabaseConfig = PoolOptions & {
     host: string;
     user: string;
     password: string;
     database: string;
     port: number;
-    connectionLimit?: number;
-    acquireTimeout?: number;
-    timeout?: number;
-}
+};
 
 export class DatabaseConnection {
     private static instance: DatabaseConnection;
@@ -18,14 +19,15 @@ export class DatabaseConnection {
 
     private constructor() {
         this.config = {
-            host: process.env.DB_HOST!,
-            user: process.env.DB_USER!,
-            password: process.env.DB_PASSWORD!,
-            database: process.env.DB_NAME!,
-            port: parseInt(process.env.DB_PORT!),
-            connectionLimit: 10,
-            acquireTimeout: 60000,
-            timeout: 60000
+            host: this.getEnv('DB_HOST'),
+            user: this.getEnv('DB_USER'),
+            password: this.getEnv('DB_PASSWORD'),
+            database: this.getEnv('DB_NAME'),
+            port: parseInt(this.getEnv('DB_PORT'), 10),
+            connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT ?? '10', 10),
+            waitForConnections: true,
+            queueLimit: 0,
+            connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT ?? '60000', 10)
         };
 
         this.pool = mysql.createPool(this.config);
@@ -122,5 +124,13 @@ export class DatabaseConnection {
 
     public getConfig(): DatabaseConfig {
         return { ...this.config };
+    }
+
+    private getEnv(key: string): string {
+        const value = process.env[key];
+        if (!value) {
+            throw new Error(`Environment variable ${key} is not defined`);
+        }
+        return value;
     }
 }
