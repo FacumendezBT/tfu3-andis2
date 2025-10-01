@@ -28,7 +28,7 @@ export class DatabaseManager {
             console.log('Database connection established successfully');
             console.log('Database configuration:', {
                 ...this.dbConnection.getConfig(),
-                password: '***' // Hide password in logs
+                password: '***'
             });
         } catch (error) {
             console.error('Database initialization failed:', error);

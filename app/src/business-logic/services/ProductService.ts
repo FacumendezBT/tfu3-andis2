@@ -50,14 +50,14 @@ export class ProductService {
     public async updateProduct(id: number, productData: Partial<ProductModel>): Promise<ProductModel | null> {
         const existingProduct = await this.productRepository.findById(id);
         if (!existingProduct) {
-            return null; // O lanzar un error
+            return null;
         }
 
         // Fusiona los datos existentes con los nuevos
         const updatedProductData = new ProductModel({
             ...existingProduct,
             ...productData,
-            id: id // Asegura que el ID no cambie
+            id: id
         });
         
         return this.productRepository.update(id, updatedProductData);

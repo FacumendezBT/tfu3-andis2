@@ -72,7 +72,7 @@ export class OrderService {
             ...orderData,
             items: itemsWithDetails,
             totalAmount: totalAmount,
-            status: OrderStatus.PENDING, // Estado inicial por defecto
+            status: OrderStatus.PENDING,
             orderDate: new Date(),
             updatedAt: new Date()
         });
