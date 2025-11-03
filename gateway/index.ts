@@ -1,15 +1,42 @@
 import express, { NextFunction, Request, Response } from 'express';
 import type { Server } from 'http';
 import { Gateway } from './src/Gateway';
+import { ConfigClient } from './src/ConfigClient';
 
 const app = express();
-const port = Number(process.env.PORT ?? 8080);
-
-const backendServices = [
+let port = Number(process.env.PORT ?? 8080);
+let backendServices: string[] = [
     process.env.BACKEND_SERVICE_1 || 'http://app1:3000',
     process.env.BACKEND_SERVICE_2 || 'http://app2:3000',
     process.env.BACKEND_SERVICE_3 || 'http://app3:3000'
 ];
+
+async function loadGatewayConfig(): Promise<void> {
+    try {
+        const configClient = ConfigClient.getInstance();
+        const gatewayConfig = await configClient.getServiceConfig('gateway');
+        
+        if (gatewayConfig) {
+            console.log('Successfully loaded gateway config from config service');
+            
+            if (gatewayConfig.port) {
+                port = gatewayConfig.port as number;
+            }
+            
+            if (gatewayConfig.backendService1 && gatewayConfig.backendService2 && gatewayConfig.backendService3) {
+                backendServices = [
+                    gatewayConfig.backendService1 as string,
+                    gatewayConfig.backendService2 as string,
+                    gatewayConfig.backendService3 as string
+                ];
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to load gateway config from config service, using defaults:', error);
+    }
+}
+
+await loadGatewayConfig();
 
 const gateway = new Gateway(backendServices);
 let server: Server | undefined;

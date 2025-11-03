@@ -14,6 +14,12 @@ const port = Number(process.env.PORT ?? 3000);
 const databaseManager = DatabaseManager.getInstance();
 const cache = RedisCache.getInstance();
 (async () => { await cache.connect() })();
+
+// Try to load config from config service
+(async () => {
+    await cache.initializeFromConfigService();
+    await cache.connect();
+})();
 let server: Server | undefined;
 
 app.disable("x-powered-by");
