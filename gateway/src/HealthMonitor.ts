@@ -1,0 +1,105 @@
+import axios, { AxiosInstance } from 'axios';
+
+export interface HealthStatus {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    timestamp: string;
+    uptime: number;
+    services: {
+        [key: string]: {
+            status: 'up' | 'down';
+            responseTime?: number;
+            instance?: string;
+        };
+    };
+    memory: {
+        used: number;
+        total: number;
+        percentage: number;
+    };
+    container?: string;
+}
+
+export class HealthMonitor {
+    private startTime: number;
+    private backendServices: string[];
+    private httpClient: AxiosInstance;
+
+    constructor(backendServices: string[]) {
+        this.startTime = Date.now();
+        this.backendServices = backendServices;
+        this.httpClient = axios.create({
+            timeout: 5000
+        });
+    }
+
+    async checkHealth(): Promise<HealthStatus> {
+        const serviceChecks = await this.checkBackendServices();
+        const memoryCheck = this.checkMemory();
+
+        const serviceStatuses = Object.values(serviceChecks);
+        const upServices = serviceStatuses.filter(s => s.status === 'up').length;
+        const totalServices = serviceStatuses.length;
+
+        let overallStatus: 'healthy' | 'degraded' | 'unhealthy';
+        const memoryThresholdHealthy = 80;
+        const memoryThresholdDegraded = 90;
+        
+        if (upServices === totalServices && memoryCheck.percentage < memoryThresholdHealthy) {
+            overallStatus = 'healthy';
+        } else if (upServices > 0 && memoryCheck.percentage < memoryThresholdDegraded) {
+            overallStatus = 'degraded';
+        } else {
+            overallStatus = 'unhealthy';
+        }
+
+        return {
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            uptime: Math.floor((Date.now() - this.startTime) / 1000),
+            services: serviceChecks,
+            memory: memoryCheck,
+            container: process.env.HOSTNAME
+        };
+    }
+
+    private async checkBackendServices(): Promise<{ [key: string]: { status: 'up' | 'down'; responseTime?: number; instance?: string } }> {
+        const checks: { [key: string]: { status: 'up' | 'down'; responseTime?: number; instance?: string } } = {};
+
+        for (const serviceUrl of this.backendServices) {
+            try {
+                const startTime = Date.now();
+                const response = await this.httpClient.get(`${serviceUrl}/health`);
+                const responseTime = Date.now() - startTime;
+
+                checks[serviceUrl] = {
+                    status: response.status === 200 ? 'up' : 'down',
+                    responseTime,
+                    instance: response.data?.container
+                };
+            } catch (error) {
+                checks[serviceUrl] = {
+                    status: 'down'
+                };
+            }
+        }
+
+        return checks;
+    }
+
+    private checkMemory(): { used: number; total: number; percentage: number } {
+        const usage = process.memoryUsage();
+        const rss = usage.rss;
+        
+        const maxMemory = 512 * 1024 * 1024;
+        const percentage = (rss / maxMemory) * 100;
+        
+        const clampedPercentage = Math.min(percentage, 100);
+
+        return {
+            used: Math.round(rss / 1024 / 1024),
+            total: Math.round(maxMemory / 1024 / 1024),
+            percentage: Math.round(clampedPercentage * 100) / 100
+        };
+    }
+}
+

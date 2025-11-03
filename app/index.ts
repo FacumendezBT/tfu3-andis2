@@ -7,10 +7,13 @@ import ProductRouter from "./src/presentation/routes/ProductRouter";
 import AuthRouter from "./src/presentation/routes/AuthRoute";
 import { gatekeeper } from "./src/presentation/middlewares/authMiddleware";
 
+import { RedisCache } from "./src/config/RedisCache";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const databaseManager = DatabaseManager.getInstance();
+const cache = RedisCache.getInstance();
+await cache.connect();
 let server: Server | undefined;
 
 app.disable("x-powered-by");

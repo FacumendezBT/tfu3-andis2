@@ -1,6 +1,7 @@
 import { CustomerModel } from '../models/CustomerModel';
 import { CustomerDAO } from '../daos/CustomerDao';
 import { ICustomerRepository } from '../../business-logic/repositories/ICustomerRepository';
+import { RedisCache } from '../../config/RedisCache';
 
 export class CustomerRepository implements ICustomerRepository {
     private customerDAO: CustomerDAO;
@@ -12,8 +13,9 @@ export class CustomerRepository implements ICustomerRepository {
     async create(customer: CustomerModel): Promise<CustomerModel> {
         try {
             this.validarHumano(customer);
-            
+
             const createdCustomer = await this.customerDAO.create(customer);
+            await RedisCache.getInstance().del("customers");
             return this.mapToModel(createdCustomer);
         } catch (error) {
             throw new Error(`Error del repo creando cliente: ${error}`);
@@ -21,12 +23,19 @@ export class CustomerRepository implements ICustomerRepository {
     }
 
     async findById(id: number): Promise<CustomerModel | null> {
+        const cachedkey = `customer:${id}`;
         try {
+            const cached = await RedisCache.getInstance().get<CustomerModel>(cachedkey);
+            if (cached) {
+                console.log("Cache hit for", cachedkey);
+                return this.mapToModel(cached);
+            }
             if (id <= 0) {
                 throw new Error('El ID del cliente debe ser un número positivo');
             }
 
             const customer = await this.customerDAO.findById(id);
+            await RedisCache.getInstance().set(cachedkey, customer, 60 * 5);
             return customer ? this.mapToModel(customer) : null;
         } catch (error) {
             throw new Error(`Error del repo buscando cliente por ID: ${error}`);
@@ -34,8 +43,16 @@ export class CustomerRepository implements ICustomerRepository {
     }
 
     async findAll(): Promise<CustomerModel[]> {
+        const cachedkey = `customers`;
         try {
+            const cached = await RedisCache.getInstance().get<CustomerModel[]>(cachedkey);
+            if (cached) {
+                console.log("Cache hit for", cachedkey);
+                return cached.map(customer => this.mapToModel(customer));
+            }
+
             const customers = await this.customerDAO.findAll();
+            await RedisCache.getInstance().set(cachedkey, customers, 60 * 5);
             return customers.map(customer => this.mapToModel(customer));
         } catch (error) {
             throw new Error(`Error del repo buscando todos los clientes: ${error}`);
@@ -43,6 +60,7 @@ export class CustomerRepository implements ICustomerRepository {
     }
 
     async update(id: number, customer: CustomerModel): Promise<CustomerModel> {
+        const cachedkey = `customer:${id}`;
         try {
             if (id <= 0) {
                 throw new Error('El ID del cliente debe ser un número positivo');
@@ -51,6 +69,9 @@ export class CustomerRepository implements ICustomerRepository {
             this.validarHumano(customer);
 
             const updatedCustomer = await this.customerDAO.update(id, customer);
+
+            await RedisCache.getInstance().del(cachedkey);
+            await RedisCache.getInstance().del("customers");
             return this.mapToModel(updatedCustomer);
         } catch (error) {
             throw new Error(`Error del repo actualizando cliente: ${error}`);
@@ -58,12 +79,15 @@ export class CustomerRepository implements ICustomerRepository {
     }
 
     async delete(id: number): Promise<void> {
+        const cachedkey = `customer:${id}`;
         try {
             if (id <= 0) {
                 throw new Error('El ID del cliente debe ser un número positivo');
             }
 
             await this.customerDAO.delete(id);
+            await RedisCache.getInstance().del(cachedkey);
+            await RedisCache.getInstance().del("customers");
         } catch (error) {
             throw new Error(`Error del repo eliminando cliente: ${error}`);
         }
@@ -83,13 +107,21 @@ export class CustomerRepository implements ICustomerRepository {
     }
 
     async findByName(name: string): Promise<CustomerModel[]> {
+        const cachedkey = `customers`;
         try {
             if (!name || name.trim().length === 0) {
                 throw new Error('El nombre no puede estar vacío');
             }
 
-            const allCustomers = await this.customerDAO.findAll();
-            const filteredCustomers = allCustomers.filter(customer => 
+            let allCustomers;
+            let cached = await RedisCache.getInstance().get<CustomerModel[]>(cachedkey);
+
+            if (cached) {
+                console.log("Cache hit for", cachedkey);
+                allCustomers = cached;
+            } else {allCustomers = await this.customerDAO.findAll();}
+            if (!cached) await RedisCache.getInstance().set(cachedkey, allCustomers, 60 * 5);
+            const filteredCustomers = allCustomers.filter(customer =>
                 customer.name.toLowerCase().includes(name.toLowerCase())
             );
             return filteredCustomers.map(customer => this.mapToModel(customer));
@@ -99,9 +131,17 @@ export class CustomerRepository implements ICustomerRepository {
     }
 
     async findActiveCustomers(): Promise<CustomerModel[]> {
+        const cachedkey = `customers`;
         try {
-            const customers = await this.customerDAO.findAll();
-            return customers.map(customer => this.mapToModel(customer));
+            let allCustomers;
+            let cached = await RedisCache.getInstance().get<CustomerModel[]>(cachedkey);
+
+            if (cached) {
+                console.log("Cache hit for", cachedkey);
+                allCustomers = cached;
+            } else { allCustomers = await this.customerDAO.findAll(); }
+            if (!cached) await RedisCache.getInstance().set(cachedkey, allCustomers, 60 * 5);
+            return allCustomers.map(customer => this.mapToModel(customer));
         } catch (error) {
             throw new Error(`Error del repo buscando clientes activos: ${error}`);
         }
