@@ -4,6 +4,7 @@ import { ProductDAO } from '../daos/ProductDao';
 import { CategoryDAO } from '../daos/CategoryDao';
 import { DatabaseConnection } from '../../config/DatabaseConnection';
 import { IProductRepository } from '../../business-logic/repositories/IProductRepository';
+import { RedisCache } from '../../config/RedisCache';
 
 export class ProductRepository implements IProductRepository {
     private productDAO: ProductDAO;
@@ -18,7 +19,7 @@ export class ProductRepository implements IProductRepository {
     async create(product: ProductModel): Promise<ProductModel> {
         try {
             this.validateProduct(product);
-            
+
             // Repository coordinates: first create the basic product
             const productToCreate = new ProductModel({
                 name: product.name,
@@ -26,15 +27,16 @@ export class ProductRepository implements IProductRepository {
                 price: product.price,
                 stock: product.stock
             });
-            
+
             const createdProduct = await this.productDAO.create(productToCreate);
-            
+
             // Then associate categories if provided
             if (product.category && product.category.length > 0) {
                 await this.associateCategories(createdProduct.id!, product.category);
             }
-            
+
             // Return complete product with categories
+            await RedisCache.getInstance().del("products");
             return await this.getProductWithCategories(createdProduct.id!);
         } catch (error) {
             throw new Error(`Error del repositorio creando producto: ${error}`);
@@ -46,10 +48,10 @@ export class ProductRepository implements IProductRepository {
             if (id <= 0) {
                 throw new Error('El ID del producto debe ser un número positivo');
             }
-            
+
             const product = await this.productDAO.findById(id);
             if (!product) return null;
-            
+
             // Repository coordinates: get product with its categories
             return await this.getProductWithCategories(id);
         } catch (error) {
@@ -61,13 +63,13 @@ export class ProductRepository implements IProductRepository {
         try {
             const products = await this.productDAO.findAll();
             const productsWithCategories = [];
-            
+
             // Repository coordinates: get each product with its categories
             for (const product of products) {
                 const fullProduct = await this.getProductWithCategories(product.id!);
                 productsWithCategories.push(fullProduct);
             }
-            
+
             return productsWithCategories;
         } catch (error) {
             throw new Error(`Error del repositorio buscando todos los productos: ${error}`);
@@ -75,13 +77,14 @@ export class ProductRepository implements IProductRepository {
     }
 
     async update(id: number, product: ProductModel): Promise<ProductModel> {
+        const cachedkey = `product:${id}`
         try {
             if (id <= 0) {
                 throw new Error('El ID del producto debe ser un número positivo');
             }
-            
+
             this.validateProduct(product);
-            
+
             // Repository coordinates: update the basic product first
             const productToUpdate = new ProductModel({
                 name: product.name,
@@ -89,19 +92,21 @@ export class ProductRepository implements IProductRepository {
                 price: product.price,
                 stock: product.stock
             });
-            
+
             await this.productDAO.update(id, productToUpdate);
-            
+
             // Update category associations
             await this.dbConnection.execute(
                 `DELETE FROM product_categories WHERE product_id = ?`,
                 [id]
             );
-            
+
             if (product.category && product.category.length > 0) {
                 await this.associateCategories(id, product.category);
             }
-            
+
+            await RedisCache.getInstance().del(cachedkey);
+
             return await this.getProductWithCategories(id);
         } catch (error) {
             throw new Error(`Error del repositorio actualizando producto: ${error}`);
@@ -109,16 +114,18 @@ export class ProductRepository implements IProductRepository {
     }
 
     async delete(id: number): Promise<void> {
+        const cachedkey = `product:${id}`
         try {
             if (id <= 0) {
                 throw new Error('El ID del producto debe ser un número positivo');
             }
-            
+
             // Repository coordinates: delete associations first, then product
             await this.dbConnection.execute(
                 `DELETE FROM product_categories WHERE product_id = ?`,
                 [id]
             );
+            await RedisCache.getInstance().del(cachedkey);
             await this.productDAO.delete(id);
         } catch (error) {
             throw new Error(`Error del repositorio eliminando producto: ${error}`);
@@ -130,7 +137,7 @@ export class ProductRepository implements IProductRepository {
             if (categoryId <= 0) {
                 throw new Error('El ID de la categoría debe ser un número positivo');
             }
-            
+
             // Repository coordinates: find products by category using relation table
             const rows = await this.dbConnection.query(
                 `SELECT p.id FROM products p 
@@ -138,13 +145,13 @@ export class ProductRepository implements IProductRepository {
                  WHERE pc.category_id = ?`,
                 [categoryId]
             );
-            
+
             const products = [];
             for (const row of rows) {
                 const product = await this.getProductWithCategories(row.id);
                 products.push(product);
             }
-            
+
             return products;
         } catch (error) {
             throw new Error(`Error del repositorio buscando productos por categoría: ${error}`);
@@ -156,11 +163,11 @@ export class ProductRepository implements IProductRepository {
             if (id <= 0) {
                 throw new Error('El ID del producto debe ser un número positivo');
             }
-            
+
             if (newStock < 0) {
                 throw new Error('El stock no puede ser negativo');
             }
-            
+
             await this.productDAO.updateStock(id, newStock);
             return await this.getProductWithCategories(id);
         } catch (error) {
@@ -173,15 +180,15 @@ export class ProductRepository implements IProductRepository {
             if (!name || name.trim().length === 0) {
                 throw new Error('El nombre no puede estar vacío');
             }
-            
+
             const products = await this.productDAO.findByName(name);
             const productsWithCategories = [];
-            
+
             for (const product of products) {
                 const productWithCategories = await this.getProductWithCategories(product.id!);
                 productsWithCategories.push(productWithCategories);
             }
-            
+
             return productsWithCategories;
         } catch (error) {
             throw new Error(`Error del repositorio buscando productos por nombre: ${error}`);
@@ -193,15 +200,15 @@ export class ProductRepository implements IProductRepository {
             if (threshold < 0) {
                 throw new Error('El umbral debe ser un número positivo');
             }
-            
+
             const products = await this.productDAO.findLowStockProducts(threshold);
             const productsWithCategories = [];
-            
+
             for (const product of products) {
                 const productWithCategories = await this.getProductWithCategories(product.id!);
                 productsWithCategories.push(productWithCategories);
             }
-            
+
             return productsWithCategories;
         } catch (error) {
             throw new Error(`Error del repositorio buscando productos con stock bajo: ${error}`);
@@ -210,6 +217,13 @@ export class ProductRepository implements IProductRepository {
 
     private async getProductWithCategories(productId: number): Promise<ProductModel> {
         // Repository coordinates: get basic product and its categories separately
+        const cachedkey = `product:${productId}`
+        const cached = await RedisCache.getInstance().get<ProductModel>(cachedkey);
+        if (cached) {
+            console.log("Cache hit for", cachedkey);
+            return cached;
+        }
+
         const product = await this.productDAO.findById(productId);
         if (!product) {
             throw new Error(`Producto no encontrado con ID: ${productId}`);
@@ -225,10 +239,12 @@ export class ProductRepository implements IProductRepository {
 
         // Convert categories using CategoryModel
         const categories = categoryRows.map((row: any) => CategoryModel.fromJSON(row));
-        
+
         const fullProduct = this.mapToModel(product);
         fullProduct.category = categories;
-        
+
+        RedisCache.getInstance().set(cachedkey, fullProduct, 60 * 5);
+
         return fullProduct;
     }
 
@@ -237,7 +253,7 @@ export class ProductRepository implements IProductRepository {
             if (!category.id) {
                 throw new Error('Las categorías deben tener un ID válido para asociar al producto');
             }
-            
+
             await this.dbConnection.execute(
                 `INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)`,
                 [productId, category.id]
@@ -268,7 +284,7 @@ export class ProductRepository implements IProductRepository {
     async createCategory(category: CategoryModel): Promise<CategoryModel> {
         try {
             this.validateCategory(category);
-            
+
             const createdCategory = await this.categoryDAO.create(category);
             return this.mapCategoryToModel(createdCategory);
         } catch (error) {

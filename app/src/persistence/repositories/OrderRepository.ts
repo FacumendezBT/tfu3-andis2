@@ -3,6 +3,7 @@ import { OrderDAO } from '../daos/OrderDao';
 import { OrderItemDAO } from '../daos/OrderItemDao';
 import { OrderStatus } from '../models/types';
 import { IOrderRepository } from '../../business-logic/repositories/IOrderRepository';
+import { RedisCache } from '../../config/RedisCache';
 
 export class OrderRepository implements IOrderRepository {
     private orderDAO: OrderDAO;
@@ -20,7 +21,7 @@ export class OrderRepository implements IOrderRepository {
 
             // Repository coordinates: first create the order
             const createdOrder = await this.orderDAO.create(order);
-            
+
             // Then create the order items if provided
             if (order.items && order.items.length > 0) {
                 for (const item of order.items) {
@@ -28,8 +29,9 @@ export class OrderRepository implements IOrderRepository {
                     await this.orderItemDAO.create(item);
                 }
             }
-            
+
             // Return complete order with items
+            await RedisCache.getInstance().del("orders");
             return await this.getOrderWithItems(createdOrder.id!);
         } catch (error) {
             throw new Error(`Error del repositorio creando orden: ${error}`);
@@ -45,7 +47,7 @@ export class OrderRepository implements IOrderRepository {
             // Repository coordinates: get order and its items separately
             const order = await this.orderDAO.findById(id);
             if (!order) return null;
-            
+
             return await this.getOrderWithItems(id);
         } catch (error) {
             throw new Error(`Error del repositorio buscando orden por ID: ${error}`);
@@ -56,13 +58,13 @@ export class OrderRepository implements IOrderRepository {
         try {
             const orders = await this.orderDAO.findAll();
             const ordersWithItems = [];
-            
+
             // Repository coordinates: get each order with its items
             for (const order of orders) {
                 const orderWithItems = await this.getOrderWithItems(order.id!);
                 ordersWithItems.push(orderWithItems);
             }
-            
+
             return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando todas las órdenes: ${error}`);
@@ -70,6 +72,7 @@ export class OrderRepository implements IOrderRepository {
     }
 
     async update(id: number, order: OrderModel): Promise<OrderModel> {
+        const cachedkey = `product:${id}`
         try {
             if (id <= 0) {
                 throw new Error('El ID de la orden debe ser un número positivo');
@@ -80,7 +83,7 @@ export class OrderRepository implements IOrderRepository {
 
             // Repository coordinates: update order first
             await this.orderDAO.update(id, order);
-            
+
             // Then update order items - delete existing and recreate
             await this.orderItemDAO.deleteByOrderId(id);
             if (order.items && order.items.length > 0) {
@@ -89,7 +92,8 @@ export class OrderRepository implements IOrderRepository {
                     await this.orderItemDAO.create(item);
                 }
             }
-            
+
+            await RedisCache.getInstance().del(cachedkey);
             return await this.getOrderWithItems(id);
         } catch (error) {
             throw new Error(`Error del repositorio actualizando orden: ${error}`);
@@ -97,6 +101,7 @@ export class OrderRepository implements IOrderRepository {
     }
 
     async delete(id: number): Promise<void> {
+        const cachedkey = `product:${id}`
         try {
             if (id <= 0) {
                 throw new Error('El ID de la orden debe ser un número positivo');
@@ -108,6 +113,7 @@ export class OrderRepository implements IOrderRepository {
             }
 
             // Repository coordina: primero elimina los items, luego la orden
+            await RedisCache.getInstance().del(cachedkey);
             await this.orderItemDAO.deleteByOrderId(id);
             await this.orderDAO.delete(id);
         } catch (error) {
@@ -123,12 +129,12 @@ export class OrderRepository implements IOrderRepository {
 
             const orders = await this.orderDAO.findByCustomerId(customerId);
             const ordersWithItems = [];
-            
+
             for (const order of orders) {
                 const orderWithItems = await this.getOrderWithItems(order.id!);
                 ordersWithItems.push(orderWithItems);
             }
-            
+
             return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes por ID de cliente: ${error}`);
@@ -143,12 +149,12 @@ export class OrderRepository implements IOrderRepository {
 
             const orders = await this.orderDAO.findByStatus(status);
             const ordersWithItems = [];
-            
+
             for (const order of orders) {
                 const orderWithItems = await this.getOrderWithItems(order.id!);
                 ordersWithItems.push(orderWithItems);
             }
-            
+
             return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes por estado: ${error}`);
@@ -194,7 +200,7 @@ export class OrderRepository implements IOrderRepository {
                 const orderWithItems = await this.getOrderWithItems(order.id!);
                 ordersWithItems.push(orderWithItems);
             }
-            
+
             return ordersWithItems;
         } catch (error) {
             throw new Error(`Error del repositorio buscando órdenes por rango de fechas: ${error}`);
@@ -219,18 +225,26 @@ export class OrderRepository implements IOrderRepository {
     }
 
     private async getOrderWithItems(orderId: number): Promise<OrderModel> {
+        const cachedkey = `product:${orderId}`
+        const cached = await RedisCache.getInstance().get<OrderModel>(cachedkey);
+        if (cached) {
+            console.log("Cache hit for", cachedkey);
+            return cached;
+        }
         // Repository coordinates: get order and its items separately
         const order = await this.orderDAO.findById(orderId);
         if (!order) {
             throw new Error(`Orden con ID ${orderId} no encontrada`);
         }
-        
+
         // Get associated order items
         const items = await this.orderItemDAO.findByOrderId(orderId);
-        
+
         // Combine order with items
         order.items = items;
-        
+
+        RedisCache.getInstance().set(cachedkey, order, 60 * 5);
+
         return this.mapToModel(order);
     }
 
