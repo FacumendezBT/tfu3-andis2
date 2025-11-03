@@ -20,6 +20,8 @@ export class DatabaseManager {
         try {
             console.log('Initializing database connection...');
             
+            await this.dbConnection.initializeFromConfigService();
+            
             const isConnected = await this.dbConnection.testConnection();
             if (!isConnected) {
                 throw new Error('Failed to establish database connection');

@@ -13,6 +13,9 @@ const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const databaseManager = DatabaseManager.getInstance();
 const cache = RedisCache.getInstance();
+
+// Try to load config from config service
+await cache.initializeFromConfigService();
 await cache.connect();
 let server: Server | undefined;
 
