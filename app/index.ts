@@ -4,6 +4,9 @@ import { DatabaseManager } from "./src/config/DatabaseManager";
 import CustomerRouter from "./src/presentation/routes/CustomerRouter";
 import OrderRouter from "./src/presentation/routes/OrderRouter";
 import ProductRouter from "./src/presentation/routes/ProductRouter";
+import AuthRouter from "./src/presentation/routes/AuthRoute";
+import { gatekeeper } from "./src/presentation/middlewares/authMiddleware";
+
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -21,6 +24,11 @@ app.get("/", (_req, res) => {
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", container: process.env.HOSTNAME });
 });
+
+app.use("/api/auth", AuthRouter);
+
+//GATEKEEPER MIDDLEWARE
+app.use(gatekeeper);
 
 app.use("/api/customers", CustomerRouter);
 app.use("/api/orders", OrderRouter);
