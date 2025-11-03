@@ -2,6 +2,7 @@
   "name": "gateway-service",
   "version": "1.0.0",
   "description": "API Gateway with Circuit Breaker, Retry and Health Monitoring",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

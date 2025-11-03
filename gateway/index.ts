@@ -1,7 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import type { Server } from 'http';
-import { Gateway } from './src/Gateway';
-import { ConfigClient } from './src/ConfigClient';
+import { Gateway } from './src/Gateway.js';
+import { ConfigClient } from './src/ConfigClient.js';
 
 const app = express();
 let port = Number(process.env.PORT ?? 8080);

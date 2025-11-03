@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { CircuitBreaker } from './CircuitBreaker';
-import { Retry } from './Retry';
-import { HealthMonitor } from './HealthMonitor';
+import { CircuitBreaker } from './CircuitBreaker.js';
+import { Retry } from './Retry.js';
+import { HealthMonitor } from './HealthMonitor.js';
 import axios, { AxiosError } from 'axios';
 
 export class Gateway {
