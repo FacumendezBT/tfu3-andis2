@@ -37,5 +37,15 @@ export class RedisCache {
     async del(key: string): Promise<void> {
         await this.client.del(key);
     }
+
+    async enqueue<T>(queueName: string, data: T): Promise<void> {
+        await this.client.rPush(queueName, JSON.stringify(data));
+    }
+
+    async dequeueBlocking<T>(queueName: string, timeout = 0): Promise<T | null> {
+        const result = await this.client.blPop(queueName, timeout);
+        if (!result) return null;
+        return JSON.parse(result.element) as T;
+    }
 }
 

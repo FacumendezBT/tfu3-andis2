@@ -84,6 +84,16 @@ services:
       - app-net
     restart: unless-stopped
 
+  customer-worker:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    command: npm run worker:customer
+    depends_on:
+      - redis
+    networks:
+      - app-net
+
   gateway:
     build:
       context: .

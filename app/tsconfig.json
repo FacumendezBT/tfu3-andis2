@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2020"],
-    "module": "ES2022",
+    "module": "NodeNext",
     "rootDir": "./",
     "outDir": "./dist",
     "strict": true,
@@ -19,7 +19,7 @@
     "strictFunctionTypes": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "moduleResolution": "node"
+    "moduleResolution": "NodeNext"
   },
   "include": [
     "**/*.ts"
