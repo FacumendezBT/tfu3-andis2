@@ -48,8 +48,7 @@ app.get('/config/:service', (req, res) => {
         });
     }
 
-    res.status(200).json(config);
-    res.status(200).json(config);
+    return res.status(200).json(config);
 });
 
 
@@ -76,8 +75,7 @@ app.get('/config/:service/:key', (req, res) => {
         });
     }
 
-    res.status(200).json({ [key]: value });
-    res.status(200).json({ [key]: value });
+    return res.status(200).json({ [key]: value });
 });
 
 app.use((req, res) => {
